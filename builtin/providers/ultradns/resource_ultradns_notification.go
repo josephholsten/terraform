@@ -8,51 +8,46 @@ import (
 	"github.com/hashicorp/terraform/helper/schema"
 )
 
-func schemaNotification() *schema.Schema {
-	return &schema.Schema{
-		Type:     schema.TypeMap,
-		Optional: true,
-		Elem: &schema.Resource{
-			Schema: map[string]*schema.Schema{
-				"zone": &schema.Schema{
-					Type:     schema.TypeString,
-					Required: true,
-					ForceNew: true,
-				},
-				"name": &schema.Schema{
-					Type:     schema.TypeString,
-					Required: true,
-					ForceNew: true,
-				},
-				"email": &schema.Schema{
-					Type:     schema.TypeString,
-					Required: true,
-					ForceNew: true,
-				},
-				"poolRecords": &schema.Schema{
-					Type:     schema.TypeList,
-					Optional: false,
-					Elem:     schemaPoolRecords(),
+func resourceUltradnsNotification() *schema.Resource {
+	return &schema.Resource{
+		Create: resourceUltradnsNotificationCreate,
+		Read:   resourceUltradnsNotificationRead,
+		Update: resourceUltradnsNotificationUpdate,
+		Delete: resourceUltradnsNotificationDelete,
+
+		Schema: map[string]*schema.Schema{
+			"zone": &schema.Schema{
+				Type:     schema.TypeString,
+				Required: true,
+				ForceNew: true,
+			},
+			"name": &schema.Schema{
+				Type:     schema.TypeString,
+				Required: true,
+				ForceNew: true,
+			},
+			"email": &schema.Schema{
+				Type:     schema.TypeString,
+				Required: true,
+				ForceNew: true,
+			},
+			"pool_records": &schema.Schema{
+				Type:     schema.TypeList,
+				Required: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"pool_record": &schema.Schema{
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+						"notification": schemaNotificationInfo(),
+					},
 				},
 			},
 		},
 	}
 }
-func schemaPoolRecords() *schema.Schema {
-	return &schema.Schema{
-		Type:     schema.TypeMap,
-		Optional: true,
-		Elem: &schema.Resource{
-			Schema: map[string]*schema.Schema{
-				"poolRecord": &schema.Schema{
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"notification": schemaNotificationInfo(),
-			},
-		},
-	}
-}
+
 func schemaNotificationInfo() *schema.Schema {
 	return &schema.Schema{
 		Type:     schema.TypeMap,
@@ -75,7 +70,7 @@ func schemaNotificationInfo() *schema.Schema {
 		},
 	}
 }
-func resourceUltraDNSNotificationCreate(d *schema.ResourceData, meta interface{}) error {
+func resourceUltradnsNotificationCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*udnssdk.Client)
 
 	n := newNotificationResource(d)
@@ -83,7 +78,7 @@ func resourceUltraDNSNotificationCreate(d *schema.ResourceData, meta interface{}
 	log.Printf("[INFO] ultradns_notification create: %#v", n)
 	r, err := client.Notifications.Create(n.Key(), n.notificationDTO())
 	if err != nil {
-		return fmt.Errorf("ultradns_notification created failed: %s", err)
+		return fmt.Errorf("created failed: %s", err)
 	}
 
 	uri := r.Header.Get("Location")
@@ -91,10 +86,10 @@ func resourceUltraDNSNotificationCreate(d *schema.ResourceData, meta interface{}
 	d.SetId(uri)
 	log.Printf("[INFO] Notification ID: %s", d.Id())
 
-	return resourceUltraDNSNotificationRead(d, meta)
+	return resourceUltradnsNotificationRead(d, meta)
 }
 
-func resourceUltraDNSNotificationRead(d *schema.ResourceData, meta interface{}) error {
+func resourceUltradnsNotificationRead(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*udnssdk.Client)
 	n := newNotificationResource(d)
 	notification, _, err := client.Notifications.Find(n.Key())
@@ -108,15 +103,15 @@ func resourceUltraDNSNotificationRead(d *schema.ResourceData, meta interface{}) 
 					d.SetId("")
 					return nil
 				}
-				return fmt.Errorf("ultradns_notification not found: %s", err)
+				return fmt.Errorf("not found: %s", err)
 			}
 		}
-		return fmt.Errorf("ultradns_notification not found: %s", err)
+		return fmt.Errorf("not found: %s", err)
 	}
 	var prs []map[string]interface{}
 	for _, e := range notification.PoolRecords {
 		prs = append(prs, map[string]interface{}{
-			"poolRecord":   e.PoolRecord,
+			"pool_record":  e.PoolRecord,
 			"notification": e.Notification,
 		})
 	}
@@ -124,7 +119,7 @@ func resourceUltraDNSNotificationRead(d *schema.ResourceData, meta interface{}) 
 	return nil
 }
 
-func resourceUltraDNSNotificationUpdate(d *schema.ResourceData, meta interface{}) error {
+func resourceUltradnsNotificationUpdate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*udnssdk.Client)
 
 	n := newNotificationResource(d)
@@ -132,13 +127,13 @@ func resourceUltraDNSNotificationUpdate(d *schema.ResourceData, meta interface{}
 	log.Printf("[INFO] UltraDNS Notification update configuration: %#v", n)
 	_, err := client.Notifications.Update(n.Key(), n.notificationDTO())
 	if err != nil {
-		return fmt.Errorf("[ERROR] Failed to update UltraDNS Notification: %s", err)
+		return fmt.Errorf("update failed: %v", err)
 	}
 
-	return resourceUltraDNSNotificationRead(d, meta)
+	return resourceUltradnsNotificationRead(d, meta)
 }
 
-func resourceUltraDNSNotificationDelete(d *schema.ResourceData, meta interface{}) error {
+func resourceUltradnsNotificationDelete(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*udnssdk.Client)
 
 	n := newNotificationResource(d)
@@ -146,7 +141,7 @@ func resourceUltraDNSNotificationDelete(d *schema.ResourceData, meta interface{}
 	log.Printf("[INFO] ultradns_notification delete: %#v", n)
 	_, err := client.Notifications.Delete(n.Key())
 	if err != nil {
-		return fmt.Errorf("ultradns_notification delete failed: %s", err)
+		return fmt.Errorf("delete failed: %s", err)
 	}
 
 	return nil

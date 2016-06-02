@@ -2,7 +2,6 @@ package ultradns
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/Ensighten/udnssdk"
@@ -12,15 +11,16 @@ import (
 
 func TestAccUltraDNSProbeBasic(t *testing.T) {
 	var record udnssdk.RRSet
-	domain := os.Getenv("ULTRADNS_DOMAIN")
+	// domain := os.Getenv("ULTRADNS_DOMAIN")
+	domain := "ultradns.phinze.com"
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckUltraDNSRecordAndProbeDestroy,
+		CheckDestroy: testAccCheckUltradnsRecordAndProbeDestroy,
 		Steps: []resource.TestStep{
 			resource.TestStep{
-				Config: fmt.Sprintf(testAccCheckUltraDNSRecordAndProbeBasic, domain, domain),
+				Config: fmt.Sprintf(testAccCheckUltradnsRecordAndProbeBasic, domain, domain),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckUltraDNSRecordExists("ultradns_record.foobar", &record),
 					testAccCheckUltraDNSRecordAttributes(&record),
@@ -78,7 +78,7 @@ func TestAccUltraDNSRecord_Updated(t *testing.T) {
 	})
 }
 */
-func testAccCheckUltraDNSRecordAndProbeDestroy(s *terraform.State) error {
+func testAccCheckUltradnsRecordAndProbeDestroy(s *terraform.State) error {
 	client := testAccProvider.Meta().(*udnssdk.Client)
 
 	for _, rs := range s.RootModule().Resources {
@@ -154,46 +154,48 @@ func testAccCheckUltraDNSRecordExists(n string, record *udnssdk.RRSet) resource.
 	}
 }
 */
-const testAccCheckUltraDNSRecordAndProbeBasic = `
-resource "ultradns_record" "foobar" {
+const testAccCheckUltradnsRecordAndProbeBasic = `
+resource "ultradns_tcpool" "foobar" {
   zone  = "%s"
   name  = "terraformprobetest"
-  rdata = ["192.168.0.11", "192.168.0.12"]
-  type  = "A"
-  ttl   = 3600
 
-  tcpool_profile {
-    description = "Test TC Profile for Terraform Acceptance Tests"
-    runProbes   = true
-    actOnProbes = true
-    maxToLB     = 2
+  ttl   = 30
+  description = "traffic controller pool with probes"
 
-    rdataInfo {
-      state         = "NORMAL"
-      runProbes     = true
-      priority      = 1
-      failoverDelay = 0
-      threshold     = 1
-      weight        = 2
-    }
+  run_probes    = true
+  act_on_probes = true
+  max_to_lb     = 2
 
-    rdataInfo {
-      state         = "NORMAL"
-      runProbes     = true
-      priority      = 2
-      failoverDelay = 0
-      threshold     = 1
-      weight        = 2
-    }
+  rdata {
+    host           = "192.168.0.11"
 
-    backupRecord = "192.168.0.1"
+    state          = "NORMAL"
+    run_probes     = true
+    priority       = 1
+    failover_delay = 0
+    threshold      = 1
+    weight         = 2
   }
+
+  rdata {
+    host           = "192.168.0.12"
+
+    state          = "NORMAL"
+    run_probes     = true
+    priority       = 2
+    failover_delay = 0
+    threshold      = 1
+    weight         = 2
+  }
+
+  backup_record_rdata = "192.168.0.1"
 }
 
 resource "ultradns_probe" "ping" {
-  zone       = "%s"
-  name       = "terraformprobetest"
-  poolRecord = "192.168.0.11"
+  zone  = "%s"
+  name  = "terraformprobetest"
+
+  pool_record = "192.168.0.11"
 
   type   = "PING"
   agents = ["DALLAS", "AMSTERDAM"]
@@ -219,5 +221,7 @@ resource "ultradns_probe" "ping" {
       fail     = 4
     }
   }
+
+  depends_on = ["ultradns_tcpool.foobar"]
 }
 `

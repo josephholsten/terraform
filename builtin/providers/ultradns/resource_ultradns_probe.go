@@ -9,6 +9,64 @@ import (
 	"github.com/hashicorp/terraform/helper/schema"
 )
 
+func resourceUltradnsProbe() *schema.Resource {
+	return &schema.Resource{
+		Create: resourceUltradnsProbeCreate,
+		Read:   resourceUltradnsProbeRead,
+		Update: resourceUltradnsProbeUpdate,
+		Delete: resourceUltradnsProbeDelete,
+
+		Schema: map[string]*schema.Schema{
+			// Required
+			"zone": &schema.Schema{
+				Type:     schema.TypeString,
+				Required: true,
+				ForceNew: true,
+			},
+			"name": &schema.Schema{
+				Type:     schema.TypeString,
+				Required: true,
+				ForceNew: true,
+			},
+
+			"pool_record": &schema.Schema{
+				Type:     schema.TypeString,
+				Required: true,
+				ForceNew: true,
+			},
+
+			"type": &schema.Schema{
+				Type:     schema.TypeString,
+				Required: true,
+			},
+			"agents": &schema.Schema{
+				Type:     schema.TypeList,
+				Required: true,
+				Elem:     &schema.Schema{Type: schema.TypeString},
+			},
+			"threshold": &schema.Schema{
+				Type:     schema.TypeInt,
+				Required: true,
+			},
+			// Optional
+			"interval": &schema.Schema{
+				Type:     schema.TypeString,
+				Optional: true,
+			},
+			"ping_probe": &schema.Schema{
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     schemaPingProbe(),
+			},
+			// Computed
+			"id": &schema.Schema{
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+		},
+	}
+}
+
 func resourceLimits() *schema.Resource {
 	return &schema.Resource{
 		Schema: map[string]*schema.Schema{
@@ -50,68 +108,9 @@ func schemaPingProbe() *schema.Resource {
 			},
 		},
 	}
-
 }
 
-func resourceUltraDNSProbe() *schema.Resource {
-	return &schema.Resource{
-		Create: resourceUltraDNSProbeCreate,
-		Read:   resourceUltraDNSProbeRead,
-		Update: resourceUltraDNSProbeUpdate,
-		Delete: resourceUltraDNSProbeDelete,
-
-		Schema: map[string]*schema.Schema{
-			// Required
-			"zone": &schema.Schema{
-				Type:     schema.TypeString,
-				Required: true,
-				ForceNew: true,
-			},
-			"name": &schema.Schema{
-				Type:     schema.TypeString,
-				Required: true,
-				ForceNew: true,
-			},
-
-			"poolRecord": &schema.Schema{
-				Type:     schema.TypeString,
-				Required: true,
-				ForceNew: true,
-			},
-
-			"type": &schema.Schema{
-				Type:     schema.TypeString,
-				Required: true,
-			},
-			"agents": &schema.Schema{
-				Type:     schema.TypeList,
-				Required: true,
-				Elem:     &schema.Schema{Type: schema.TypeString},
-			},
-			"threshold": &schema.Schema{
-				Type:     schema.TypeInt,
-				Required: true,
-			},
-			// Optional
-			"interval": &schema.Schema{
-				Type:     schema.TypeString,
-				Optional: true,
-			},
-			"ping_probe": &schema.Schema{
-				Type:     schema.TypeSet,
-				Optional: true,
-				Elem:     schemaPingProbe(),
-			},
-			// Computed
-			"id": &schema.Schema{
-				Type:     schema.TypeString,
-				Computed: true,
-			},
-		},
-	}
-}
-
-func resourceUltraDNSProbeCreate(d *schema.ResourceData, meta interface{}) error {
+func resourceUltradnsProbeCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*udnssdk.Client)
 
 	r, err := newProbeResource(d)
@@ -122,7 +121,7 @@ func resourceUltraDNSProbeCreate(d *schema.ResourceData, meta interface{}) error
 	log.Printf("[INFO] ultradns_probe create: %+v", r)
 	resp, err := client.Probes.Create(r.Key().RRSetKey(), r.ProbeInfoDTO())
 	if err != nil {
-		return fmt.Errorf("ultradns_probe create failed: %v", err)
+		return fmt.Errorf("create failed: %v", err)
 	}
 
 	uri := resp.Header.Get("Location")
@@ -131,10 +130,10 @@ func resourceUltraDNSProbeCreate(d *schema.ResourceData, meta interface{}) error
 	d.SetId(id)
 	log.Printf("[INFO] ultradns_probe.id: %v", d.Id())
 
-	return resourceUltraDNSProbeRead(d, meta)
+	return resourceUltradnsProbeRead(d, meta)
 }
 
-func resourceUltraDNSProbeRead(d *schema.ResourceData, meta interface{}) error {
+func resourceUltradnsProbeRead(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*udnssdk.Client)
 
 	r, err := newProbeResource(d)
@@ -144,6 +143,7 @@ func resourceUltraDNSProbeRead(d *schema.ResourceData, meta interface{}) error {
 
 	log.Printf("[DEBUG] ultradns_probe read: %+v", r)
 	probe, _, err := client.Probes.Find(r.Key())
+	panic(fmt.Sprintf("Probe: %#v ProbeInfo: %#v", r, probe))
 
 	if err != nil {
 		uderr, ok := err.(*udnssdk.ErrorResponseList)
@@ -154,16 +154,16 @@ func resourceUltraDNSProbeRead(d *schema.ResourceData, meta interface{}) error {
 					d.SetId("")
 					return nil
 				}
-				return fmt.Errorf("ultradns_probe not found: %s", err)
+				return fmt.Errorf("not found: %s", err)
 			}
 		}
-		return fmt.Errorf("ultradns_probe not found: %s", err)
+		return fmt.Errorf("not found: %s", err)
 	}
 
 	return populateResourceDataFromProbe(probe, d)
 }
 
-func resourceUltraDNSProbeUpdate(d *schema.ResourceData, meta interface{}) error {
+func resourceUltradnsProbeUpdate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*udnssdk.Client)
 
 	r, err := newProbeResource(d)
@@ -174,13 +174,13 @@ func resourceUltraDNSProbeUpdate(d *schema.ResourceData, meta interface{}) error
 	log.Printf("[INFO] ultradns_probe update: %+v", r)
 	_, err = client.Probes.Update(r.Key(), r.ProbeInfoDTO())
 	if err != nil {
-		return fmt.Errorf("ultradns_probe update failed: %s", err)
+		return fmt.Errorf("update failed: %s", err)
 	}
 
-	return resourceUltraDNSProbeRead(d, meta)
+	return resourceUltradnsProbeRead(d, meta)
 }
 
-func resourceUltraDNSProbeDelete(d *schema.ResourceData, meta interface{}) error {
+func resourceUltradnsProbeDelete(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*udnssdk.Client)
 
 	r, err := newProbeResource(d)
@@ -191,10 +191,10 @@ func resourceUltraDNSProbeDelete(d *schema.ResourceData, meta interface{}) error
 	log.Printf("[INFO] ultradns_probe delete: %+v", r)
 	_, err = client.Probes.Delete(r.Key())
 	if err != nil {
-		return fmt.Errorf("ultradns_probe delete failed: %s", err)
+		return fmt.Errorf("delete failed: %s", err)
 	}
 
-	return resourceUltraDNSProbeRead(d, meta)
+	return resourceUltradnsProbeRead(d, meta)
 }
 
 type probeResource struct {
@@ -221,7 +221,7 @@ func newProbeResource(d *schema.ResourceData) (probeResource, error) {
 	p.ID = d.Id()
 
 	p.Interval = d.Get("interval").(string)
-	p.PoolRecord = d.Get("poolRecord").(string)
+	p.PoolRecord = d.Get("pool_record").(string)
 	p.Threshold = d.Get("threshold").(int)
 	p.Type = d.Get("type").(string)
 
@@ -303,9 +303,9 @@ func populateResourceDataFromProbe(p udnssdk.ProbeInfoDTO, d *schema.ResourceDat
 	// id
 	d.SetId(p.ID)
 	// poolRecord
-	err := d.Set("poolRecord", p.PoolRecord)
+	err := d.Set("pool_record", p.PoolRecord)
 	if err != nil {
-		return fmt.Errorf("Error setting poolRecord: %v", err)
+		return fmt.Errorf("Error setting pool_record: %v", err)
 	}
 	// interval
 	err = d.Set("interval", p.Interval)
@@ -330,7 +330,7 @@ func populateResourceDataFromProbe(p udnssdk.ProbeInfoDTO, d *schema.ResourceDat
 	// details
 	err = p.Details.Populate(p.ProbeType)
 	if err != nil {
-		return fmt.Errorf("Could not populate probe details: %v", err)
+		return fmt.Errorf("Could not populate probe details: %v, ProbeInfo: %#v", err, p)
 	}
 	if p.Details != nil {
 		var dp map[string]interface{}
