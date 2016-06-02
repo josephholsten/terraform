@@ -2,7 +2,6 @@ package ultradns
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 
 	"github.com/Ensighten/udnssdk"
@@ -28,13 +27,11 @@ func resourceUltradnsProbePing() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 			},
-
 			"pool_record": &schema.Schema{
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
 			},
-
 			"agents": &schema.Schema{
 				Type:     schema.TypeList,
 				Required: true,
@@ -101,7 +98,7 @@ func resourceUltradnsProbePing() *schema.Resource {
 func resourceUltradnsProbePingCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*udnssdk.Client)
 
-	r, err := newPingProbeResource(d)
+	r, err := makePingProbeResource(d)
 	if err != nil {
 		return fmt.Errorf("Could not load ultradns_probe_ping configuration: %v", err)
 	}
@@ -111,8 +108,6 @@ func resourceUltradnsProbePingCreate(d *schema.ResourceData, meta interface{}) e
 	if err != nil {
 		return fmt.Errorf("create failed: %v", err)
 	}
-	httpBody, err := ioutil.ReadAll(resp.Body)
-	log.Printf("[INFO] ultradns_probe_ping create resp: %+v body: %v", resp, string(httpBody))
 
 	uri := resp.Header.Get("Location")
 	d.Set("uri", uri)
@@ -125,7 +120,7 @@ func resourceUltradnsProbePingCreate(d *schema.ResourceData, meta interface{}) e
 func resourceUltradnsProbePingRead(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*udnssdk.Client)
 
-	r, err := newPingProbeResource(d)
+	r, err := makePingProbeResource(d)
 	if err != nil {
 		return fmt.Errorf("Could not load ultradns_probe_ping configuration: %v", err)
 	}
@@ -155,7 +150,7 @@ func resourceUltradnsProbePingRead(d *schema.ResourceData, meta interface{}) err
 func resourceUltradnsProbePingUpdate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*udnssdk.Client)
 
-	r, err := newPingProbeResource(d)
+	r, err := makePingProbeResource(d)
 	if err != nil {
 		return fmt.Errorf("Could not load ultradns_probe_ping configuration: %v", err)
 	}
@@ -172,7 +167,7 @@ func resourceUltradnsProbePingUpdate(d *schema.ResourceData, meta interface{}) e
 func resourceUltradnsProbePingDelete(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*udnssdk.Client)
 
-	r, err := newPingProbeResource(d)
+	r, err := makePingProbeResource(d)
 	if err != nil {
 		return fmt.Errorf("Could not load ultradns_probe_ping configuration: %s", err)
 	}
@@ -185,6 +180,8 @@ func resourceUltradnsProbePingDelete(d *schema.ResourceData, meta interface{}) e
 
 	return nil
 }
+
+// Resource Helpers
 
 type pingProbeResource struct {
 	Name string
@@ -200,67 +197,38 @@ type pingProbeResource struct {
 	Details *udnssdk.ProbeDetailsDTO
 }
 
-func newPingProbeResource(d *schema.ResourceData) (pingProbeResource, error) {
+func makePingProbeResource(d *schema.ResourceData) (pingProbeResource, error) {
 	p := pingProbeResource{}
-	// zoneName
 	p.Zone = d.Get("zone").(string)
-	// ownerName
 	p.Name = d.Get("name").(string)
-	// id
 	p.ID = d.Id()
-
 	p.Interval = d.Get("interval").(string)
 	p.PoolRecord = d.Get("pool_record").(string)
 	p.Threshold = d.Get("threshold").(int)
 	p.Type = "PING"
 
-	// agents
 	as, ok := d.GetOk("agents")
 	if !ok {
 		return p, fmt.Errorf("ultradns_probe_ping.agents not ok: %+v", d.Get("agents"))
 	}
-	for _, e := range as.([]interface{}) {
-		p.Agents = append(p.Agents, e.(string))
+	for _, a := range as.([]interface{}) {
+		p.Agents = append(p.Agents, a.(string))
 	}
 
-	// details
-	// TODO: validate p.Type is in typeToAttrKeyMap.Keys
-	drd, ok := d.GetOk("ping_probe")
+	pp, ok := d.GetOk("ping_probe")
 	if !ok {
 		return p, fmt.Errorf("ultradns_probe_ping.ping_probe not ok: %+v", d.Get("ping_probe"))
 	}
-	p.Details = makeProbeDetails(drd)
+
+	pps := pp.([]interface{})
+	if len(pps) >= 1 {
+		if len(pps) > 1 {
+			return p, fmt.Errorf("ping_probe: only 0 or 1 blocks alowed, got: %#v", len(pps))
+		}
+		p.Details = makeProbeDetails(pps[0])
+	}
 
 	return p, nil
-}
-
-func makeProbeDetails(drd interface{}) *udnssdk.ProbeDetailsDTO {
-	probelist := drd.([]interface{})
-	probedetails := probelist[0].(map[string]interface{})
-	// Convert limits from flattened set format to mapping.
-	ls := map[string]interface{}{}
-	for _, limit := range probedetails["limits"].([]interface{}) {
-		l := limit.(map[string]interface{})
-		name := l["name"].(string)
-		ls[name] = map[string]interface{}{
-			"warning":  l["warning"],
-			"critical": l["critical"],
-			"fail":     l["fail"],
-		}
-	}
-	// d := udnssdk.PingProbeDetails{
-	// 	Limits:     ls
-	// 	PacketSize: probedetails["packet_size"]
-	// 	Packets:    probedetails["packets"]
-	// }
-	d := map[string]interface{}{
-		"limits":     ls,
-		"packetSize": probedetails["packet_size"],
-		"packets":    probedetails["packets"],
-	}
-	return &udnssdk.ProbeDetailsDTO{
-		Detail: d,
-	}
 }
 
 func (p pingProbeResource) RRSetKey() udnssdk.RRSetKey {
@@ -287,67 +255,70 @@ func (p pingProbeResource) Key() udnssdk.ProbeKey {
 	}
 }
 
+func makeProbeDetails(configured interface{}) *udnssdk.ProbeDetailsDTO {
+	data := configured.(map[string]interface{})
+	// Convert limits from flattened set format to mapping.
+	ls := make(map[string]udnssdk.ProbeDetailsLimitDTO)
+	for _, limit := range data["limits"].([]interface{}) {
+		l := limit.(map[string]interface{})
+		name := l["name"].(string)
+		ls[name] = udnssdk.ProbeDetailsLimitDTO{
+			Warning:  l["warning"].(int),
+			Critical: l["critical"].(int),
+			Fail:     l["fail"].(int),
+		}
+	}
+	res := udnssdk.ProbeDetailsDTO{
+		Detail: udnssdk.PingProbeDetailsDTO{
+			Limits:     ls,
+			PacketSize: data["packet_size"].(int),
+			Packets:    data["packets"].(int),
+		},
+	}
+	return &res
+}
+
 func populateResourceDataFromPingProbe(p udnssdk.ProbeInfoDTO, d *schema.ResourceData) error {
-	// id
 	d.SetId(p.ID)
-	// poolRecord
-	err := d.Set("pool_record", p.PoolRecord)
-	if err != nil {
-		return fmt.Errorf("Error setting pool_record: %v", err)
-	}
-	// interval
-	err = d.Set("interval", p.Interval)
-	if err != nil {
-		return fmt.Errorf("Error setting interval: %v", err)
-	}
-	// agents
-	err = d.Set("agents", p.Agents)
-	if err != nil {
-		return fmt.Errorf("Error setting agents: %v", err)
-	}
-	// threshold
-	err = d.Set("threshold", p.Threshold)
-	if err != nil {
-		return fmt.Errorf("Error setting threshold: %v", err)
-	}
-	// details
-	err = p.Details.Populate(p.ProbeType)
-	if err != nil {
-		return fmt.Errorf("Could not populate probe details: %v, ProbeInfo: %#v", err, p)
-	}
+	d.Set("pool_record", p.PoolRecord)
+	d.Set("interval", p.Interval)
+	d.Set("agents", p.Agents)
+	d.Set("threshold", p.Threshold)
+
+	var pp []map[string]interface{}
 	if p.Details != nil {
-		// var dp map[string]interface{}
-		// err = json.Unmarshal(p.Details.GetData(), &dp)
 		dp, err := mapFromDetails(p.Details)
 		if err != nil {
-			return err
+			return fmt.Errorf("ProbeInfo.details could not be unmarshalled: %v, Details: %#v", err, p.Details)
 		}
-		var dps []map[string]interface{}
-		dps = append(dps, dp)
-
-		err = d.Set("ping_probe", dps)
-		if err != nil {
-			return fmt.Errorf("Error setting details: %v", err)
-		}
+		pp = append(pp, dp)
+	}
+	err := d.Set("ping_probe", pp)
+	if err != nil {
+		return fmt.Errorf("ping_probe set failed: %v, from %#v", err, pp)
 	}
 	return nil
 }
 
 func mapFromDetails(raw *udnssdk.ProbeDetailsDTO) (map[string]interface{}, error) {
-	m := make(map[string]interface{})
-	// err := json.Unmarshal(d.GetData(), &m)
 	d, err := raw.PingProbeDetails()
-	m["packets"] = d.Packets
-	m["packet_size"] = d.PacketSize
-	var ls []map[string]interface{}
+	if err != nil {
+		return nil, err
+	}
+	ls := make([]map[string]interface{}, 0, len(d.Limits))
 	for name, lim := range d.Limits {
-		l := make(map[string]interface{})
-		l["name"] = name
-		l["warning"] = lim.Warning
-		l["critical"] = lim.Critical
-		l["fail"] = lim.Fail
+		l := map[string]interface{}{
+			"name":     name,
+			"warning":  lim.Warning,
+			"critical": lim.Critical,
+			"fail":     lim.Fail,
+		}
 		ls = append(ls, l)
 	}
-	m["limits"] = ls
-	return m, err
+	m := map[string]interface{}{
+		"limits":      ls,
+		"packets":     d.Packets,
+		"packet_size": d.PacketSize,
+	}
+	return m, nil
 }
