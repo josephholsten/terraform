@@ -206,7 +206,7 @@ type probeResource struct {
 	Interval   string
 	PoolRecord string
 	Threshold  int
-	Type       string
+	Type       udnssdk.ProbeType
 
 	Details *udnssdk.ProbeDetailsDTO
 }
@@ -223,7 +223,7 @@ func newProbeResource(d *schema.ResourceData) (probeResource, error) {
 	p.Interval = d.Get("interval").(string)
 	p.PoolRecord = d.Get("pool_record").(string)
 	p.Threshold = d.Get("threshold").(int)
-	p.Type = d.Get("type").(string)
+	p.Type = udnssdk.ProbeType(d.Get("type").(string))
 
 	// agents
 	as, ok := d.GetOk("agents")
@@ -282,13 +282,13 @@ func (p probeResource) ProbeInfoDTO() udnssdk.ProbeInfoDTO {
 	}
 }
 
-var typeToAttrKeyMap = map[string]string{
-	"HTTP":      "http_probe",
-	"PING":      "ping_probe",
-	"FTP":       "ftp_probe",
-	"SMTP":      "smtp_probe",
-	"SMTP_SEND": "smtpsend_probe",
-	"DNS":       "dns_probe",
+var typeToAttrKeyMap = map[udnssdk.ProbeType]string{
+	udnssdk.DNSProbeType:      "dns_probe",
+	udnssdk.FTPProbeType:      "ftp_probe",
+	udnssdk.HTTPProbeType:     "http_probe",
+	udnssdk.PingProbeType:     "ping_probe",
+	udnssdk.SMTPProbeType:     "smtp_probe",
+	udnssdk.SMTPSENDProbeType: "smtpsend_probe",
 }
 
 func (p probeResource) Key() udnssdk.ProbeKey {

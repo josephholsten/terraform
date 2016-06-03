@@ -192,7 +192,7 @@ type pingProbeResource struct {
 	Interval   string
 	PoolRecord string
 	Threshold  int
-	Type       string
+	Type       udnssdk.ProbeType
 
 	Details *udnssdk.ProbeDetailsDTO
 }
@@ -286,22 +286,21 @@ func populateResourceDataFromPingProbe(p udnssdk.ProbeInfoDTO, d *schema.Resourc
 	d.Set("threshold", p.Threshold)
 
 	var pp []map[string]interface{}
-	if p.Details != nil {
-		dp, err := mapFromDetails(p.Details)
-		if err != nil {
-			return fmt.Errorf("ProbeInfo.details could not be unmarshalled: %v, Details: %#v", err, p.Details)
-		}
-		pp = append(pp, dp)
+	dp, err := mapFromDetails(p)
+	if err != nil {
+		return fmt.Errorf("ProbeInfo.details could not be unmarshalled: %v, Details: %#v", err, p.Details)
 	}
-	err := d.Set("ping_probe", pp)
+	pp = append(pp, dp)
+
+	err = d.Set("ping_probe", pp)
 	if err != nil {
 		return fmt.Errorf("ping_probe set failed: %v, from %#v", err, pp)
 	}
 	return nil
 }
 
-func mapFromDetails(raw *udnssdk.ProbeDetailsDTO) (map[string]interface{}, error) {
-	d, err := raw.PingProbeDetails()
+func mapFromDetails(raw udnssdk.ProbeInfoDTO) (map[string]interface{}, error) {
+	d, err := raw.Details.PingProbeDetails()
 	if err != nil {
 		return nil, err
 	}
