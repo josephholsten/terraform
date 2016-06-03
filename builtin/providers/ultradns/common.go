@@ -55,3 +55,12 @@ func unzipRdataHosts(configured []interface{}) []string {
 	}
 	return hs
 }
+
+func mapFromLimit(name string, l udnssdk.ProbeDetailsLimitDTO) (map[string]interface{}) {
+	return map[string]interface{}{
+		"name":     name,
+		"warning":  l.Warning,
+		"critical": l.Critical,
+		"fail":     l.Fail,
+	}
+}
