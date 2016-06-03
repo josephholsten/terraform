@@ -278,6 +278,15 @@ func makeProbeDetails(configured interface{}) *udnssdk.ProbeDetailsDTO {
 	return &res
 }
 
+func makeProbeDetailsLimit(configured interface{}) udnssdk.ProbeDetailsLimitDTO {
+	l := configured.(map[string]interface{})
+	return udnssdk.ProbeDetailsLimitDTO{
+		Warning:  l["warning"].(int),
+		Critical: l["critical"].(int),
+		Fail:     l["fail"].(int),
+	}
+}
+
 func populateResourceDataFromPingProbe(p udnssdk.ProbeInfoDTO, d *schema.ResourceData) error {
 	d.SetId(p.ID)
 	d.Set("pool_record", p.PoolRecord)
@@ -286,7 +295,7 @@ func populateResourceDataFromPingProbe(p udnssdk.ProbeInfoDTO, d *schema.Resourc
 	d.Set("threshold", p.Threshold)
 
 	var pp []map[string]interface{}
-	dp, err := mapFromDetails(p)
+	dp, err := mapFromDetails(p.Details)
 	if err != nil {
 		return fmt.Errorf("ProbeInfo.details could not be unmarshalled: %v, Details: %#v", err, p.Details)
 	}
@@ -299,20 +308,14 @@ func populateResourceDataFromPingProbe(p udnssdk.ProbeInfoDTO, d *schema.Resourc
 	return nil
 }
 
-func mapFromDetails(raw udnssdk.ProbeInfoDTO) (map[string]interface{}, error) {
-	d, err := raw.Details.PingProbeDetails()
+func mapFromDetails(raw udnssdk.ProbeDetailsDTO) (map[string]interface{}, error) {
+	d, err := raw.PingProbeDetails()
 	if err != nil {
 		return nil, err
 	}
 	ls := make([]map[string]interface{}, 0, len(d.Limits))
-	for name, lim := range d.Limits {
-		l := map[string]interface{}{
-			"name":     name,
-			"warning":  lim.Warning,
-			"critical": lim.Critical,
-			"fail":     lim.Fail,
-		}
-		ls = append(ls, l)
+	for name, l := range d.Limits {
+		ls = append(ls, mapFromLimit(name, l))
 	}
 	m := map[string]interface{}{
 		"limits":      ls,
@@ -320,4 +323,13 @@ func mapFromDetails(raw udnssdk.ProbeInfoDTO) (map[string]interface{}, error) {
 		"packet_size": d.PacketSize,
 	}
 	return m, nil
+}
+
+func mapFromLimit(name string, l udnssdk.ProbeDetailsLimitDTO) (map[string]interface{}) {
+	return map[string]interface{}{
+		"name":     name,
+		"warning":  l.Warning,
+		"critical": l.Critical,
+		"fail":     l.Fail,
+	}
 }
