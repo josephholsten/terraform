@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform/terraform"
 )
 
-func TestAccUltradnsProbeHTTPBasic(t *testing.T) {
+func TestAccUltradnsProbeHTTP(t *testing.T) {
 	var record udnssdk.RRSet
 	domain := "ultradns.phinze.com"
 
@@ -21,58 +21,70 @@ func TestAccUltradnsProbeHTTPBasic(t *testing.T) {
 			resource.TestStep{
 				Config: fmt.Sprintf(testAccCheckUltradnsRecordAndHTTPProbeBasic, domain, domain),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckUltraDNSRecordExists("ultradns_tcpool.probe-http-test", &record),
+					testAccCheckUltraDNSRecordExists("ultradns_tcpool.test-probe-http-minimal", &record),
 					// Specified
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "zone", domain),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "name", "probe-http-test"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "pool_record", "192.168.0.11"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "agents.0", "DALLAS"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "agents.1", "AMSTERDAM"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "interval", "ONE_MINUTE"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "threshold", "1"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.method", "GET"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.url", "http://localhost/index"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "zone", domain),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "name", "test-probe-http-minimal"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "pool_record", "192.168.0.11"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "agents.0", "DALLAS"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "agents.1", "AMSTERDAM"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "interval", "ONE_MINUTE"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "threshold", "1"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.method", "GET"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.url", "http://localhost/index"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.#", "2"),
+
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.446788084.name", "connect"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.446788084.warning", "20"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.446788084.critical", "20"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.446788084.fail", "20"),
+
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.216598508.name", "run"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.216598508.warning", "60"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.216598508.critical", "60"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.216598508.fail", "60"),
 				),
 			},
 			resource.TestStep{
-				Config: fmt.Sprintf(testAccCheckUltradnsRecordAndHTTPProbeMaximal, domain, domain),
+				Config: fmt.Sprintf(testAccCheckUltradnsRecordAndProbeHTTPMaximal, domain, domain),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckUltraDNSRecordExists("ultradns_tcpool.probe-http-test", &record),
+					testAccCheckUltraDNSRecordExists("ultradns_tcpool.test-probe-http-maximal", &record),
 					// Specified
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "zone", domain),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "name", "probe-http-test"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "pool_record", "192.168.0.11"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "agents.0", "DALLAS"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "agents.1", "AMSTERDAM"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "interval", "ONE_MINUTE"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "threshold", "1"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.method", "POST"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.url", "http://localhost/index"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "zone", domain),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "name", "test-probe-http-maximal"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "pool_record", "192.168.0.11"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "agents.0", "DALLAS"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "agents.1", "AMSTERDAM"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "interval", "ONE_MINUTE"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "threshold", "1"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.method", "POST"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.url", "http://localhost/index"),
 
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.limit.0.name", "connect"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.limit.0.warning", "1"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.limit.0.critical", "2"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.limit.0.fail", "3"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.#", "4"),
 
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.limit.1.name", "avgConnect"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.limit.1.warning", "1"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.limit.1.critical", "2"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.limit.1.fail", "3"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.216598508.name", "run"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.216598508.warning", "1"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.216598508.critical", "2"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.216598508.fail", "3"),
 
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.limit.2.name", "run"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.limit.2.warning", "1"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.limit.2.critical", "2"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.limit.2.fail", "3"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.3212651885.name", "avgConnect"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.3212651885.warning", "4"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.3212651885.critical", "5"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.3212651885.fail", "6"),
 
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.limit.3.name", "avgRun"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.limit.3.warning", "1"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.limit.3.critical", "2"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.transaction.0.limit.3.fail", "3"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.3411782240.name", "avgRun"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.3411782240.warning", "7"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.3411782240.critical", "8"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.3411782240.fail", "9"),
 
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.total_limits.0.warning", "1"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.total_limits.0.critical", "2"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.http", "http_probe.0.total_limits.0.fail", "3"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.446788084.name", "connect"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.446788084.warning", "10"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.446788084.critical", "11"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.transaction.0.limit.446788084.fail", "12"),
 
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.total_limits.0.warning", "13"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.total_limits.0.critical", "14"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "http_probe.0.total_limits.0.fail", "15"),
 				),
 			},
 		},
@@ -103,11 +115,11 @@ func testAccCheckUltradnsRecordAndHTTPProbeDestroy(s *terraform.State) error {
 }
 
 const testAccCheckUltradnsRecordAndHTTPProbeBasic = `
-resource "ultradns_tcpool" "probe-http-test" {
-  zone  = "%s"
-  name  = "probe-http-test"
+resource "ultradns_tcpool" "test-probe-http-minimal" {
+  zone = "%s"
+  name = "test-probe-http-minimal"
 
-  ttl   = 30
+  ttl         = 30
   description = "traffic controller pool with probes"
 
   run_probes    = true
@@ -115,7 +127,7 @@ resource "ultradns_tcpool" "probe-http-test" {
   max_to_lb     = 2
 
   rdata {
-    host           = "192.168.0.11"
+    host = "192.168.0.11"
 
     state          = "NORMAL"
     run_probes     = true
@@ -126,7 +138,7 @@ resource "ultradns_tcpool" "probe-http-test" {
   }
 
   rdata {
-    host           = "192.168.0.12"
+    host = "192.168.0.12"
 
     state          = "NORMAL"
     run_probes     = true
@@ -139,9 +151,9 @@ resource "ultradns_tcpool" "probe-http-test" {
   backup_record_rdata = "192.168.0.1"
 }
 
-resource "ultradns_probe_http" "http" {
+resource "ultradns_probe_http" "it" {
   zone = "%s"
-  name = "probe-http-test"
+  name = "test-probe-http-minimal"
 
   pool_record = "192.168.0.11"
 
@@ -152,19 +164,33 @@ resource "ultradns_probe_http" "http" {
 
   http_probe {
     transaction {
-      method           = "GET"
-      url              = "http://localhost/index"
+      method = "GET"
+      url    = "http://localhost/index"
+
+      limit {
+        name     = "run"
+        warning  = 60
+        critical = 60
+        fail     = 60
+      }
+
+      limit {
+        name     = "connect"
+        warning  = 20
+        critical = 20
+        fail     = 20
+      }
     }
   }
 
-  depends_on = ["ultradns_tcpool.probe-http-test"]
+  depends_on = ["ultradns_tcpool.test-probe-http-minimal"]
 }
 `
 
-const testAccCheckUltradnsRecordAndHTTPProbeMaximal = `
-resource "ultradns_tcpool" "probe-http-test" {
+const testAccCheckUltradnsRecordAndProbeHTTPMaximal = `
+resource "ultradns_tcpool" "test-probe-http-maximal" {
   zone  = "%s"
-  name  = "probe-http-test"
+  name  = "test-probe-http-maximal"
 
   ttl   = 30
   description = "traffic controller pool with probes"
@@ -198,9 +224,9 @@ resource "ultradns_tcpool" "probe-http-test" {
   backup_record_rdata = "192.168.0.1"
 }
 
-resource "ultradns_probe_http" "http" {
+resource "ultradns_probe_http" "it" {
   zone = "%s"
-  name = "probe-http-test"
+  name = "test-probe-http-maximal"
 
   pool_record = "192.168.0.11"
 
@@ -217,7 +243,7 @@ resource "ultradns_probe_http" "http" {
       follow_redirects = true
 
       limit {
-        name = "connect"
+        name = "run"
 
         warning  = 1
         critical = 2
@@ -226,33 +252,33 @@ resource "ultradns_probe_http" "http" {
       limit {
         name = "avgConnect"
 
-        warning  = 1
-        critical = 2
-        fail     = 3
-      }
-      limit {
-        name = "run"
-
-        warning  = 1
-        critical = 2
-        fail     = 3
+        warning  = 4
+        critical = 5
+        fail     = 6
       }
       limit {
         name = "avgRun"
 
-        warning  = 1
-        critical = 2
-        fail     = 3
+        warning  = 7
+        critical = 8
+        fail     = 9
+      }
+      limit {
+        name = "connect"
+
+        warning  = 10
+        critical = 11
+        fail     = 12
       }
     }
 
     total_limits {
-      warning  = 1
-      critical = 2
-      fail     = 3
+      warning  = 13
+      critical = 14
+      fail     = 15
     }
   }
 
-  depends_on = ["ultradns_tcpool.probe-http-test"]
+  depends_on = ["ultradns_tcpool.test-probe-http-maximal"]
 }
 `

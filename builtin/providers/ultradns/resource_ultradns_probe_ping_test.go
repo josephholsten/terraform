@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform/terraform"
 )
 
-func TestAccUltradnsProbePingBasic(t *testing.T) {
+func TestAccUltradnsProbePing(t *testing.T) {
 	var record udnssdk.RRSet
 	domain := "ultradns.phinze.com"
 
@@ -21,25 +21,28 @@ func TestAccUltradnsProbePingBasic(t *testing.T) {
 			resource.TestStep{
 				Config: fmt.Sprintf(testAccCheckUltradnsRecordAndPingProbeBasic, domain, domain),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckUltraDNSRecordExists("ultradns_tcpool.probe-test", &record),
+					testAccCheckUltraDNSRecordExists("ultradns_tcpool.test-probe-ping", &record),
 					// Specified
-					resource.TestCheckResourceAttr("ultradns_probe_ping.ping", "zone", domain),
-					resource.TestCheckResourceAttr("ultradns_probe_ping.ping", "name", "probe-test"),
-					resource.TestCheckResourceAttr("ultradns_probe_ping.ping", "pool_record", "192.168.0.11"),
-					resource.TestCheckResourceAttr("ultradns_probe_ping.ping", "agents.0", "DALLAS"),
-					resource.TestCheckResourceAttr("ultradns_probe_ping.ping", "agents.1", "AMSTERDAM"),
-					resource.TestCheckResourceAttr("ultradns_probe_ping.ping", "interval", "ONE_MINUTE"),
-					resource.TestCheckResourceAttr("ultradns_probe_ping.ping", "threshold", "1"),
-					resource.TestCheckResourceAttr("ultradns_probe_ping.ping", "ping_probe.0.packets", "15"),
-					resource.TestCheckResourceAttr("ultradns_probe_ping.ping", "ping_probe.0.packet_size", "56"),
-					resource.TestCheckResourceAttr("ultradns_probe_ping.ping", "ping_probe.0.limits.0.name", "lossPercent"),
-					resource.TestCheckResourceAttr("ultradns_probe_ping.ping", "ping_probe.0.limits.0.warning", "1"),
-					resource.TestCheckResourceAttr("ultradns_probe_ping.ping", "ping_probe.0.limits.0.critical", "2"),
-					resource.TestCheckResourceAttr("ultradns_probe_ping.ping", "ping_probe.0.limits.0.fail", "3"),
-					resource.TestCheckResourceAttr("ultradns_probe_ping.ping", "ping_probe.0.limits.1.name", "total"),
-					resource.TestCheckResourceAttr("ultradns_probe_ping.ping", "ping_probe.0.limits.1.warning", "2"),
-					resource.TestCheckResourceAttr("ultradns_probe_ping.ping", "ping_probe.0.limits.1.critical", "3"),
-					resource.TestCheckResourceAttr("ultradns_probe_ping.ping", "ping_probe.0.limits.1.fail", "4"),
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "zone", domain),
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "name", "test-probe-ping"),
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "pool_record", "192.168.0.11"),
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "agents.0", "DALLAS"),
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "agents.1", "AMSTERDAM"),
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "interval", "ONE_MINUTE"),
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "threshold", "1"),
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "ping_probe.0.packets", "15"),
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "ping_probe.0.packet_size", "56"),
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "ping_probe.0.limit.#", "2"),
+
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "ping_probe.0.limit.354186460.name", "lossPercent"),
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "ping_probe.0.limit.354186460.warning", "1"),
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "ping_probe.0.limit.354186460.critical", "2"),
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "ping_probe.0.limit.354186460.fail", "3"),
+
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "ping_probe.0.limit.466411754.name", "total"),
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "ping_probe.0.limit.466411754.warning", "2"),
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "ping_probe.0.limit.466411754.critical", "3"),
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "ping_probe.0.limit.466411754.fail", "4"),
 				),
 			},
 		},
@@ -70,9 +73,9 @@ func testAccCheckUltradnsRecordAndPingProbeDestroy(s *terraform.State) error {
 }
 
 const testAccCheckUltradnsRecordAndPingProbeBasic = `
-resource "ultradns_tcpool" "probe-test" {
+resource "ultradns_tcpool" "test-probe-ping" {
   zone  = "%s"
-  name  = "probe-test"
+  name  = "test-probe-ping"
 
   ttl   = 30
   description = "traffic controller pool with probes"
@@ -106,9 +109,9 @@ resource "ultradns_tcpool" "probe-test" {
   backup_record_rdata = "192.168.0.1"
 }
 
-resource "ultradns_probe_ping" "ping" {
+resource "ultradns_probe_ping" "it" {
   zone  = "%s"
-  name  = "probe-test"
+  name  = "test-probe-ping"
 
   pool_record = "192.168.0.11"
 
@@ -121,14 +124,14 @@ resource "ultradns_probe_ping" "ping" {
     packets    = 15
     packet_size = 56
 
-    limits {
+    limit {
       name     = "lossPercent"
       warning  = 1
       critical = 2
       fail     = 3
     }
 
-    limits {
+    limit {
       name     = "total"
       warning  = 2
       critical = 3
@@ -136,6 +139,6 @@ resource "ultradns_probe_ping" "ping" {
     }
   }
 
-  depends_on = ["ultradns_tcpool.probe-test"]
+  depends_on = ["ultradns_tcpool.test-probe-ping"]
 }
 `

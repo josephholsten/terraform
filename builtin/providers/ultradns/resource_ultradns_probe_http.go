@@ -49,84 +49,70 @@ func resourceUltradnsProbeHTTP() *schema.Resource {
 			"http_probe": &schema.Schema{
 				Type:     schema.TypeList,
 				Optional: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"transaction": &schema.Schema{
-							Type:     schema.TypeList,
-							Optional: true,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"method": &schema.Schema{
-										Type:     schema.TypeString,
-										Required: true,
-									},
-									"url": &schema.Schema{
-										Type:     schema.TypeString,
-										Required: true,
-									},
-									"transmitted_data": &schema.Schema{
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"follow_redirects": &schema.Schema{
-										Type:     schema.TypeBool,
-										Optional: true,
-										Default:  false,
-									},
-									"limit": &schema.Schema{
-										Type:     schema.TypeList,
-										Optional: true,
-										Elem: &schema.Resource{
-											Schema: map[string]*schema.Schema{
-												"name": &schema.Schema{
-													Type:     schema.TypeString,
-													Required: true,
-												},
-												"warning": &schema.Schema{
-													Type:     schema.TypeInt,
-													Required: true,
-												},
-												"critical": &schema.Schema{
-													Type:     schema.TypeInt,
-													Required: true,
-												},
-												"fail": &schema.Schema{
-													Type:     schema.TypeInt,
-													Required: true,
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-						"total_limits": &schema.Schema{
-							Type:     schema.TypeList,
-							Optional: true,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"warning": &schema.Schema{
-										Type:     schema.TypeInt,
-										Required: true,
-									},
-									"critical": &schema.Schema{
-										Type:     schema.TypeInt,
-										Required: true,
-									},
-									"fail": &schema.Schema{
-										Type:     schema.TypeInt,
-										Required: true,
-									},
-								},
-							},
-						},
-					},
-				},
+				Elem:     schemaHTTPProbe(),
 			},
 			// Computed
 			"id": &schema.Schema{
 				Type:     schema.TypeString,
 				Computed: true,
+			},
+		},
+	}
+}
+
+func schemaHTTPProbe() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"transaction": &schema.Schema{
+				Type:     schema.TypeList,
+				Optional: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"method": &schema.Schema{
+							Type:     schema.TypeString,
+							Required: true,
+						},
+						"url": &schema.Schema{
+							Type:     schema.TypeString,
+							Required: true,
+						},
+						"transmitted_data": &schema.Schema{
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+						"follow_redirects": &schema.Schema{
+							Type:     schema.TypeBool,
+							Optional: true,
+							Default:  false,
+						},
+						"limit": &schema.Schema{
+							Type:     schema.TypeSet,
+							Optional: true,
+							Set:      hashLimits,
+							Elem:     resourceProbeLimits(),
+						},
+					},
+				},
+			},
+			"total_limits": &schema.Schema{
+				Type:     schema.TypeList,
+				Optional: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"warning": &schema.Schema{
+							Type:     schema.TypeInt,
+							Required: true,
+						},
+						"critical": &schema.Schema{
+							Type:     schema.TypeInt,
+							Required: true,
+						},
+						"fail": &schema.Schema{
+							Type:     schema.TypeInt,
+							Required: true,
+						},
+					},
+				},
 			},
 		},
 	}
@@ -220,124 +206,66 @@ func resourceUltradnsProbeHTTPDelete(d *schema.ResourceData, meta interface{}) e
 
 // Resource Helpers
 
-type httpProbeResource struct {
-	Name string
-	Zone string
-	ID   string
-
-	Agents     []string
-	Interval   string
-	PoolRecord string
-	Threshold  int
-	Type       udnssdk.ProbeType
-
-	Details *udnssdk.ProbeDetailsDTO
-}
-
-func makeHTTPProbeResource(d *schema.ResourceData) (httpProbeResource, error) {
-	p := httpProbeResource{}
+func makeHTTPProbeResource(d *schema.ResourceData) (probeResource, error) {
+	p := probeResource{}
 	p.Zone = d.Get("zone").(string)
 	p.Name = d.Get("name").(string)
 	p.ID = d.Id()
 	p.Interval = d.Get("interval").(string)
 	p.PoolRecord = d.Get("pool_record").(string)
 	p.Threshold = d.Get("threshold").(int)
-	p.Type = udnssdk.HTTPProbeType
-
-	as, ok := d.GetOk("agents")
-	if !ok {
-		return p, fmt.Errorf("ultradns_probe_http.agents not ok: %+v", d.Get("agents"))
-	}
-	for _, a := range as.([]interface{}) {
+	for _, a := range d.Get("agents").([]interface{}) {
 		p.Agents = append(p.Agents, a.(string))
 	}
 
-	pp, ok := d.GetOk("http_probe")
-	if !ok {
-		return p, fmt.Errorf("ultradns_probe_http.http_probe not ok: %+v", d.Get("http_probe"))
-	}
-
-	pps := pp.([]interface{})
-	if len(pps) >= 1 {
-		if len(pps) > 1 {
-			return p, fmt.Errorf("http_probe: only 0 or 1 blocks alowed, got: %#v", len(pps))
+	p.Type = udnssdk.HTTPProbeType
+	hps := d.Get("http_probe").([]interface{})
+	if len(hps) >= 1 {
+		if len(hps) > 1 {
+			return p, fmt.Errorf("http_probe: only 0 or 1 blocks alowed, got: %#v", len(hps))
 		}
-		p.Details = makeHTTPProbeDetails(pps[0])
+		p.Details = makeHTTPProbeDetails(hps[0])
 	}
 
 	return p, nil
 }
 
-func (p httpProbeResource) RRSetKey() udnssdk.RRSetKey {
-	return p.Key().RRSetKey()
-}
-
-func (p httpProbeResource) ProbeInfoDTO() udnssdk.ProbeInfoDTO {
-	return udnssdk.ProbeInfoDTO{
-		ID:         p.ID,
-		PoolRecord: p.PoolRecord,
-		ProbeType:  p.Type,
-		Interval:   p.Interval,
-		Agents:     p.Agents,
-		Threshold:  p.Threshold,
-		Details:    p.Details,
-	}
-}
-
-func (p httpProbeResource) Key() udnssdk.ProbeKey {
-	return udnssdk.ProbeKey{
-		Zone: p.Zone,
-		Name: p.Name,
-		ID:   p.ID,
-	}
-}
-
 func makeHTTPProbeDetails(configured interface{}) *udnssdk.ProbeDetailsDTO {
 	data := configured.(map[string]interface{})
 	// Convert limits from flattened set format to mapping.
+	d := udnssdk.HTTPProbeDetailsDTO{}
 
-	rawTs := data["transaction"].([]interface{})
 	ts := []udnssdk.Transaction{}
-	for _, rt := range rawTs {
-		t := rt.(map[string]interface{})
+	for _, rt := range data["transaction"].([]interface{}) {
+		mt := rt.(map[string]interface{})
 		ls := make(map[string]udnssdk.ProbeDetailsLimitDTO)
-		for _, limit := range t["limit"].([]interface{}) {
+		for _, limit := range mt["limit"].(*schema.Set).List() {
 			l := limit.(map[string]interface{})
 			name := l["name"].(string)
-			ls[name] = makeProbeDetailsLimit(l)
+			ls[name] = *makeProbeDetailsLimit(l)
 		}
-		trans := udnssdk.Transaction{
-			Method:          t["method"].(string),
-			URL:             t["url"].(string),
-			TransmittedData: t["transmitted_data"].(string),
-			FollowRedirects: t["follow_redirects"].(bool),
-			Limits: ls,
+		t := udnssdk.Transaction{
+			Method:          mt["method"].(string),
+			URL:             mt["url"].(string),
+			TransmittedData: mt["transmitted_data"].(string),
+			FollowRedirects: mt["follow_redirects"].(bool),
+			Limits:          ls,
 		}
-		ts = append(ts, trans)
+		ts = append(ts, t)
 	}
-	d := udnssdk.HTTPProbeDetailsDTO{
-		Transactions: ts,
-	}
+	d.Transactions = ts
 	rawLims := data["total_limits"].([]interface{})
-	// TODO: validate 0 or 1 total_limits
-	if len(rawLims) > 0 {
-		lim := rawLims[0]
-		l := makeProbeDetailsLimit(lim)
-		d.TotalLimits = &l
+	if len(rawLims) >= 1 {
+		// TODO: validate 0 or 1 total_limits
+		// if len(rawLims) > 1 {
+		// 	return nil, fmt.Errorf("total_limits: only 0 or 1 blocks alowed, got: %#v", len(rawLims))
+		// }
+		d.TotalLimits = makeProbeDetailsLimit(rawLims[0])
 	}
 	res := udnssdk.ProbeDetailsDTO{
 		Detail: d,
 	}
 	return &res
-}
-
-func makeProbeDetailsLimit(configured interface{}) udnssdk.ProbeDetailsLimitDTO {
-	l := configured.(map[string]interface{})
-	return udnssdk.ProbeDetailsLimitDTO{
-		Warning:  l["warning"].(int),
-		Critical: l["critical"].(int),
-		Fail:     l["fail"].(int),
-	}
 }
 
 func populateResourceDataFromHTTPProbe(p udnssdk.ProbeInfoDTO, d *schema.ResourceData) error {
@@ -347,37 +275,39 @@ func populateResourceDataFromHTTPProbe(p udnssdk.ProbeInfoDTO, d *schema.Resourc
 	d.Set("agents", p.Agents)
 	d.Set("threshold", p.Threshold)
 
-	var pp []map[string]interface{}
-	dp, err := mapFromHTTPDetails(p.Details)
+	hp := map[string]interface{}{}
+	hd, err := p.Details.HTTPProbeDetails()
 	if err != nil {
 		return fmt.Errorf("ProbeInfo.details could not be unmarshalled: %v, Details: %#v", err, p.Details)
 	}
-	pp = append(pp, dp)
-
-	err = d.Set("http_probe", pp)
-	if err != nil {
-		return fmt.Errorf("http_probe set failed: %v, from %#v", err, pp)
-	}
-	return nil
-}
-
-func mapFromHTTPDetails(raw *udnssdk.ProbeDetailsDTO) (map[string]interface{}, error) {
-	d, err := raw.HTTPProbeDetails()
-	if err != nil {
-		return nil, err
-	}
-	ts := make([]map[string]interface{}, 0, len(d.Transactions))
-	for _, rt := range d.Transactions {
+	ts := make([]map[string]interface{}, 0, len(hd.Transactions))
+	for _, rt := range hd.Transactions {
 		t := map[string]interface{}{
 			"method":           rt.Method,
 			"url":              rt.URL,
 			"transmitted_data": rt.TransmittedData,
 			"follow_redirects": rt.FollowRedirects,
+			"limit":            makeSetFromLimits(rt.Limits),
 		}
 		ts = append(ts, t)
 	}
-	m := map[string]interface{}{
-		"transaction": ts,
+	hp["transaction"] = ts
+
+	tls := []map[string]interface{}{}
+	rawtl := hd.TotalLimits
+	if rawtl != nil {
+		tl := map[string]interface{}{
+			"warning":  rawtl.Warning,
+			"critical": rawtl.Critical,
+			"fail":     rawtl.Fail,
+		}
+		tls = append(tls, tl)
 	}
-	return m, nil
+	hp["total_limits"] = tls
+
+	err = d.Set("http_probe", []map[string]interface{}{hp})
+	if err != nil {
+		return fmt.Errorf("http_probe set failed: %v, from %#v", err, hp)
+	}
+	return nil
 }

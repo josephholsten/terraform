@@ -28,13 +28,11 @@ func resourceUltradnsProbe() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 			},
-
 			"pool_record": &schema.Schema{
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
 			},
-
 			"type": &schema.Schema{
 				Type:     schema.TypeString,
 				Required: true,
@@ -54,7 +52,7 @@ func resourceUltradnsProbe() *schema.Resource {
 				Optional: true,
 			},
 			"ping_probe": &schema.Schema{
-				Type:     schema.TypeSet,
+				Type:     schema.TypeList,
 				Optional: true,
 				Elem:     schemaPingProbe(),
 			},
@@ -67,7 +65,28 @@ func resourceUltradnsProbe() *schema.Resource {
 	}
 }
 
-func resourceLimits() *schema.Resource {
+func schemaPingProbe() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"packets": &schema.Schema{
+				Type:     schema.TypeInt,
+				Optional: true,
+			},
+			"packet_size": &schema.Schema{
+				Type:     schema.TypeInt,
+				Optional: true,
+			},
+			"limit": &schema.Schema{
+				Type:     schema.TypeSet,
+				Optional: true,
+				Set:      hashLimits,
+				Elem:     resourceProbeLimits(),
+			},
+		},
+	}
+}
+
+func resourceProbeLimits() *schema.Resource {
 	return &schema.Resource{
 		Schema: map[string]*schema.Schema{
 			"name": &schema.Schema{
@@ -85,26 +104,6 @@ func resourceLimits() *schema.Resource {
 			"fail": &schema.Schema{
 				Type:     schema.TypeInt,
 				Required: true,
-			},
-		},
-	}
-}
-
-func schemaPingProbe() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"packets": &schema.Schema{
-				Type:     schema.TypeInt,
-				Optional: true,
-			},
-			"packetSize": &schema.Schema{
-				Type:     schema.TypeInt,
-				Optional: true,
-			},
-			"limits": &schema.Schema{
-				Type:     schema.TypeList,
-				Optional: true,
-				Elem:     resourceLimits(),
 			},
 		},
 	}
@@ -197,66 +196,35 @@ func resourceUltradnsProbeDelete(d *schema.ResourceData, meta interface{}) error
 	return resourceUltradnsProbeRead(d, meta)
 }
 
-type probeResource struct {
-	Name string
-	Zone string
-	ID   string
-
-	Agents     []string
-	Interval   string
-	PoolRecord string
-	Threshold  int
-	Type       udnssdk.ProbeType
-
-	Details *udnssdk.ProbeDetailsDTO
-}
+// Resource Helpers
 
 func newProbeResource(d *schema.ResourceData) (probeResource, error) {
 	p := probeResource{}
-	// zoneName
 	p.Zone = d.Get("zone").(string)
-	// ownerName
 	p.Name = d.Get("name").(string)
-	// id
 	p.ID = d.Id()
-
 	p.Interval = d.Get("interval").(string)
 	p.PoolRecord = d.Get("pool_record").(string)
 	p.Threshold = d.Get("threshold").(int)
 	p.Type = udnssdk.ProbeType(d.Get("type").(string))
-
-	// agents
-	as, ok := d.GetOk("agents")
-	if !ok {
-		return p, fmt.Errorf("ultradns_probe.agents not ok: %+v", d.Get("agents"))
-	}
-	for _, e := range as.([]interface{}) {
-		p.Agents = append(p.Agents, e.(string))
+	for _, a := range d.Get("agents").([]interface{}) {
+		p.Agents = append(p.Agents, a.(string))
 	}
 
 	// details
 	// TODO: validate p.Type is in typeToAttrKeyMap.Keys
-	drd, ok := d.GetOk(p.detailsAttribute())
-	if !ok {
-		return p, fmt.Errorf("ultradns_probe.%s not ok: %+v", p.detailsAttribute(), d.Get(p.detailsAttribute()))
-	}
-	probeset := drd.(*schema.Set)
-	var probedetails map[string]interface{}
-	probedetails = probeset.List()[0].(map[string]interface{})
-	// Convert limits from flattened set format to mapping.
+	// TODO: case(p.Type) -> makeFooDetail
+	probedetails := d.Get(p.detailsAttribute()).(*schema.Set).List()[0].(map[string]interface{})
 	ls := map[string]interface{}{}
-	for _, limit := range probedetails["limits"].([]interface{}) {
+	for _, limit := range probedetails["limit"].(*schema.Set).List() {
 		l := limit.(map[string]interface{})
 		name := l["name"].(string)
-		ls[name] = map[string]interface{}{
-			"warning":  l["warning"],
-			"critical": l["critical"],
-			"fail":     l["fail"],
-		}
+		ls[name] = makeProbeDetailsLimit(l)
 	}
-	probedetails["limits"] = ls
 	p.Details = &udnssdk.ProbeDetailsDTO{
-		Detail: probedetails,
+		Detail: map[string]interface{}{
+			"limits": ls,
+		},
 	}
 
 	return p, nil
@@ -264,22 +232,6 @@ func newProbeResource(d *schema.ResourceData) (probeResource, error) {
 
 func (p probeResource) detailsAttribute() string {
 	return typeToAttrKeyMap[p.Type]
-}
-
-func (p probeResource) RRSetKey() udnssdk.RRSetKey {
-	return p.Key().RRSetKey()
-}
-
-func (p probeResource) ProbeInfoDTO() udnssdk.ProbeInfoDTO {
-	return udnssdk.ProbeInfoDTO{
-		ID:         p.ID,
-		PoolRecord: p.PoolRecord,
-		ProbeType:  p.Type,
-		Interval:   p.Interval,
-		Agents:     p.Agents,
-		Threshold:  p.Threshold,
-		Details:    p.Details,
-	}
 }
 
 var typeToAttrKeyMap = map[udnssdk.ProbeType]string{
@@ -291,44 +243,15 @@ var typeToAttrKeyMap = map[udnssdk.ProbeType]string{
 	udnssdk.SMTPSENDProbeType: "smtpsend_probe",
 }
 
-func (p probeResource) Key() udnssdk.ProbeKey {
-	return udnssdk.ProbeKey{
-		Zone: p.Zone,
-		Name: p.Name,
-		ID:   p.ID,
-	}
-}
-
 func populateResourceDataFromProbe(p udnssdk.ProbeInfoDTO, d *schema.ResourceData) error {
-	// id
 	d.SetId(p.ID)
-	// poolRecord
-	err := d.Set("pool_record", p.PoolRecord)
-	if err != nil {
-		return fmt.Errorf("Error setting pool_record: %v", err)
-	}
-	// interval
-	err = d.Set("interval", p.Interval)
-	if err != nil {
-		return fmt.Errorf("Error setting interval: %v", err)
-	}
-	// type
-	err = d.Set("type", p.ProbeType)
-	if err != nil {
-		return fmt.Errorf("Error setting type: %v", err)
-	}
-	// agents
-	err = d.Set("agents", p.Agents)
-	if err != nil {
-		return fmt.Errorf("Error setting agents: %v", err)
-	}
-	// threshold
-	err = d.Set("threshold", p.Threshold)
-	if err != nil {
-		return fmt.Errorf("Error setting threshold: %v", err)
-	}
-	// details
-	err = p.Details.Populate(p.ProbeType)
+	d.Set("pool_record", p.PoolRecord)
+	d.Set("interval", p.Interval)
+	d.Set("agents", p.Agents)
+	d.Set("threshold", p.Threshold)
+
+	d.Set("type", p.ProbeType)
+	err := p.Details.Populate(p.ProbeType)
 	if err != nil {
 		return fmt.Errorf("Could not populate probe details: %v, ProbeInfo: %#v", err, p)
 	}

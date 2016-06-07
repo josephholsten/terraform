@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform/terraform"
 )
 
-func TestAccUltraDNSProbeBasic(t *testing.T) {
+func TestAccUltradnsProbe(t *testing.T) {
 	var record udnssdk.RRSet
 	// domain := os.Getenv("ULTRADNS_DOMAIN")
 	domain := "ultradns.phinze.com"
@@ -22,14 +22,28 @@ func TestAccUltraDNSProbeBasic(t *testing.T) {
 			resource.TestStep{
 				Config: fmt.Sprintf(testAccCheckUltradnsRecordAndProbeBasic, domain, domain),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckUltraDNSRecordExists("ultradns_record.foobar", &record),
-					testAccCheckUltraDNSRecordAttributes(&record),
-					resource.TestCheckResourceAttr(
-						"ultradns_record.foobar", "name", "terraform"),
-					resource.TestCheckResourceAttr(
-						"ultradns_record.foobar", "zone", domain),
-					resource.TestCheckResourceAttr(
-						"ultradns_record.foobar", "rdata.0", "192.168.0.11"),
+					testAccCheckUltraDNSRecordExists("ultradns_tcpool.test-probe", &record),
+					// Specified
+					resource.TestCheckResourceAttr("ultradns_probe.it", "zone", domain),
+					resource.TestCheckResourceAttr("ultradns_probe.it", "name", "test-probe-ping"),
+					resource.TestCheckResourceAttr("ultradns_probe.it", "pool_record", "192.168.0.11"),
+					resource.TestCheckResourceAttr("ultradns_probe.it", "agents.0", "DALLAS"),
+					resource.TestCheckResourceAttr("ultradns_probe.it", "agents.1", "AMSTERDAM"),
+					resource.TestCheckResourceAttr("ultradns_probe.it", "interval", "ONE_MINUTE"),
+					resource.TestCheckResourceAttr("ultradns_probe.it", "threshold", "1"),
+					resource.TestCheckResourceAttr("ultradns_probe.it", "ping_probe.0.packets", "15"),
+					resource.TestCheckResourceAttr("ultradns_probe.it", "ping_probe.0.packet_size", "56"),
+					resource.TestCheckResourceAttr("ultradns_probe.it", "ping_probe.0.limit.#", "2"),
+
+					resource.TestCheckResourceAttr("ultradns_probe.it", "ping_probe.0.limit.354186460.name", "lossPercent"),
+					resource.TestCheckResourceAttr("ultradns_probe.it", "ping_probe.0.limit.354186460.warning", "1"),
+					resource.TestCheckResourceAttr("ultradns_probe.it", "ping_probe.0.limit.354186460.critical", "2"),
+					resource.TestCheckResourceAttr("ultradns_probe.it", "ping_probe.0.limit.354186460.fail", "3"),
+
+					resource.TestCheckResourceAttr("ultradns_probe.it", "ping_probe.0.limit.466411754.name", "total"),
+					resource.TestCheckResourceAttr("ultradns_probe.it", "ping_probe.0.limit.466411754.warning", "2"),
+					resource.TestCheckResourceAttr("ultradns_probe.it", "ping_probe.0.limit.466411754.critical", "3"),
+					resource.TestCheckResourceAttr("ultradns_probe.it", "ping_probe.0.limit.466411754.fail", "4"),
 				),
 			},
 		},
@@ -155,9 +169,9 @@ func testAccCheckUltraDNSRecordExists(n string, record *udnssdk.RRSet) resource.
 }
 */
 const testAccCheckUltradnsRecordAndProbeBasic = `
-resource "ultradns_tcpool" "foobar" {
+resource "ultradns_tcpool" "test-probe" {
   zone  = "%s"
-  name  = "terraformprobetest"
+  name  = "test-probe"
 
   ttl   = 30
   description = "traffic controller pool with probes"
@@ -167,7 +181,7 @@ resource "ultradns_tcpool" "foobar" {
   max_to_lb     = 2
 
   rdata {
-    host           = "192.168.0.11"
+    host           = "192.168.1.11"
 
     state          = "NORMAL"
     run_probes     = true
@@ -178,7 +192,7 @@ resource "ultradns_tcpool" "foobar" {
   }
 
   rdata {
-    host           = "192.168.0.12"
+    host           = "192.168.1.12"
 
     state          = "NORMAL"
     run_probes     = true
@@ -188,14 +202,14 @@ resource "ultradns_tcpool" "foobar" {
     weight         = 2
   }
 
-  backup_record_rdata = "192.168.0.1"
+  backup_record_rdata = "192.168.1.1"
 }
 
-resource "ultradns_probe" "ping" {
+resource "ultradns_probe" "it" {
   zone  = "%s"
-  name  = "terraformprobetest"
+  name  = "test-probe"
 
-  pool_record = "192.168.0.11"
+  pool_record = "192.168.1.11"
 
   type   = "PING"
   agents = ["DALLAS", "AMSTERDAM"]
@@ -205,16 +219,16 @@ resource "ultradns_probe" "ping" {
 
   ping_probe {
     packets    = 15
-    packetSize = 56
+    packet_size = 56
 
-    limits {
+    limit {
       name     = "lossPercent"
       warning  = 1
       critical = 2
       fail     = 3
     }
 
-    limits {
+    limit {
       name     = "total"
       warning  = 2
       critical = 3
@@ -222,6 +236,6 @@ resource "ultradns_probe" "ping" {
     }
   }
 
-  depends_on = ["ultradns_tcpool.foobar"]
+  depends_on = ["ultradns_tcpool.test-probe"]
 }
 `

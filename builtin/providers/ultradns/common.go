@@ -1,9 +1,13 @@
 package ultradns
 
 import (
+	"bytes"
 	"fmt"
+	"log"
 
 	"github.com/Ensighten/udnssdk"
+	"github.com/hashicorp/terraform/helper/hashcode"
+	"github.com/hashicorp/terraform/helper/schema"
 )
 
 // Conversion helper functions
@@ -56,11 +60,78 @@ func unzipRdataHosts(configured []interface{}) []string {
 	return hs
 }
 
-func mapFromLimit(name string, l udnssdk.ProbeDetailsLimitDTO) (map[string]interface{}) {
+type probeResource struct {
+	Name string
+	Zone string
+	ID   string
+
+	Agents     []string
+	Interval   string
+	PoolRecord string
+	Threshold  int
+	Type       udnssdk.ProbeType
+
+	Details *udnssdk.ProbeDetailsDTO
+}
+
+func (p probeResource) RRSetKey() udnssdk.RRSetKey {
+	return p.Key().RRSetKey()
+}
+
+func (p probeResource) ProbeInfoDTO() udnssdk.ProbeInfoDTO {
+	return udnssdk.ProbeInfoDTO{
+		ID:         p.ID,
+		PoolRecord: p.PoolRecord,
+		ProbeType:  p.Type,
+		Interval:   p.Interval,
+		Agents:     p.Agents,
+		Threshold:  p.Threshold,
+		Details:    p.Details,
+	}
+}
+
+func (p probeResource) Key() udnssdk.ProbeKey {
+	return udnssdk.ProbeKey{
+		Zone: p.Zone,
+		Name: p.Name,
+		ID:   p.ID,
+	}
+}
+
+func mapFromLimit(name string, l udnssdk.ProbeDetailsLimitDTO) map[string]interface{} {
 	return map[string]interface{}{
 		"name":     name,
 		"warning":  l.Warning,
 		"critical": l.Critical,
 		"fail":     l.Fail,
+	}
+}
+
+// hashLimits generates a hashcode for a limits block
+func hashLimits(v interface{}) int {
+	var buf bytes.Buffer
+	m := v.(map[string]interface{})
+	buf.WriteString(fmt.Sprintf("%s-", m["name"].(string)))
+	h := hashcode.String(buf.String())
+	log.Printf("[INFO] hashLimits(): %v -> %v", buf.String(), h)
+	return h
+}
+
+// makeSetFromLimits encodes an array of Limits into a
+// *schema.Set in the appropriate structure for the schema
+func makeSetFromLimits(ls map[string]udnssdk.ProbeDetailsLimitDTO) *schema.Set {
+	s := &schema.Set{F: hashLimits}
+	for name, l := range ls {
+		s.Add(mapFromLimit(name, l))
+	}
+	return s
+}
+
+func makeProbeDetailsLimit(configured interface{}) *udnssdk.ProbeDetailsLimitDTO {
+	l := configured.(map[string]interface{})
+	return &udnssdk.ProbeDetailsLimitDTO{
+		Warning:  l["warning"].(int),
+		Critical: l["critical"].(int),
+		Fail:     l["fail"].(int),
 	}
 }
