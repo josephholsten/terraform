@@ -6,7 +6,6 @@ import (
 
 	"github.com/Ensighten/udnssdk"
 	"github.com/hashicorp/terraform/helper/resource"
-	"github.com/hashicorp/terraform/terraform"
 )
 
 func TestAccUltradnsProbePing(t *testing.T) {
@@ -16,16 +15,16 @@ func TestAccUltradnsProbePing(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckUltradnsRecordAndPingProbeDestroy,
+		CheckDestroy: testAccTcpoolCheckDestroy,
 		Steps: []resource.TestStep{
 			resource.TestStep{
-				Config: fmt.Sprintf(testAccCheckUltradnsRecordAndPingProbeBasic, domain, domain),
+				Config: fmt.Sprintf(testCfgProbePing, domain, domain),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckUltraDNSRecordExists("ultradns_tcpool.test-probe-ping", &record),
+					testAccCheckUltradnsRecordExists("ultradns_tcpool.test-probe-ping", &record),
 					// Specified
 					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "zone", domain),
 					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "name", "test-probe-ping"),
-					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "pool_record", "192.168.0.11"),
+					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "pool_record", "10.3.0.1"),
 					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "agents.0", "DALLAS"),
 					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "agents.1", "AMSTERDAM"),
 					resource.TestCheckResourceAttr("ultradns_probe_ping.it", "interval", "ONE_MINUTE"),
@@ -49,30 +48,7 @@ func TestAccUltradnsProbePing(t *testing.T) {
 	})
 }
 
-func testAccCheckUltradnsRecordAndPingProbeDestroy(s *terraform.State) error {
-	client := testAccProvider.Meta().(*udnssdk.Client)
-
-	for _, rs := range s.RootModule().Resources {
-		if rs.Type != "ultradns_record" {
-			continue
-		}
-
-		k := udnssdk.RRSetKey{
-			Zone: rs.Primary.Attributes["zone"],
-			Name: rs.Primary.Attributes["name"],
-			Type: rs.Primary.Attributes["type"],
-		}
-
-		_, err := client.RRSets.Select(k)
-		if err == nil {
-			return fmt.Errorf("Record still exists")
-		}
-	}
-
-	return nil
-}
-
-const testAccCheckUltradnsRecordAndPingProbeBasic = `
+const testCfgProbePing = `
 resource "ultradns_tcpool" "test-probe-ping" {
   zone  = "%s"
   name  = "test-probe-ping"
@@ -85,7 +61,7 @@ resource "ultradns_tcpool" "test-probe-ping" {
   max_to_lb     = 2
 
   rdata {
-    host           = "192.168.0.11"
+    host = "10.3.0.1"
 
     state          = "NORMAL"
     run_probes     = true
@@ -96,7 +72,7 @@ resource "ultradns_tcpool" "test-probe-ping" {
   }
 
   rdata {
-    host           = "192.168.0.12"
+    host = "10.3.0.2"
 
     state          = "NORMAL"
     run_probes     = true
@@ -106,14 +82,14 @@ resource "ultradns_tcpool" "test-probe-ping" {
     weight         = 2
   }
 
-  backup_record_rdata = "192.168.0.1"
+  backup_record_rdata = "10.3.0.3"
 }
 
 resource "ultradns_probe_ping" "it" {
   zone  = "%s"
   name  = "test-probe-ping"
 
-  pool_record = "192.168.0.11"
+  pool_record = "10.3.0.1"
 
   agents = ["DALLAS", "AMSTERDAM"]
 

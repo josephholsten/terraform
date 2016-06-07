@@ -6,7 +6,6 @@ import (
 
 	"github.com/Ensighten/udnssdk"
 	"github.com/hashicorp/terraform/helper/resource"
-	"github.com/hashicorp/terraform/terraform"
 )
 
 func TestAccUltradnsProbeHTTP(t *testing.T) {
@@ -16,16 +15,16 @@ func TestAccUltradnsProbeHTTP(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckUltradnsRecordAndHTTPProbeDestroy,
+		CheckDestroy: testAccTcpoolCheckDestroy,
 		Steps: []resource.TestStep{
 			resource.TestStep{
-				Config: fmt.Sprintf(testAccCheckUltradnsRecordAndHTTPProbeBasic, domain, domain),
+				Config: fmt.Sprintf(testCfgProbeHTTPMinimal, domain, domain),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckUltraDNSRecordExists("ultradns_tcpool.test-probe-http-minimal", &record),
+					testAccCheckUltradnsRecordExists("ultradns_tcpool.test-probe-http-minimal", &record),
 					// Specified
 					resource.TestCheckResourceAttr("ultradns_probe_http.it", "zone", domain),
 					resource.TestCheckResourceAttr("ultradns_probe_http.it", "name", "test-probe-http-minimal"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.it", "pool_record", "192.168.0.11"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "pool_record", "10.2.0.1"),
 					resource.TestCheckResourceAttr("ultradns_probe_http.it", "agents.0", "DALLAS"),
 					resource.TestCheckResourceAttr("ultradns_probe_http.it", "agents.1", "AMSTERDAM"),
 					resource.TestCheckResourceAttr("ultradns_probe_http.it", "interval", "ONE_MINUTE"),
@@ -46,13 +45,13 @@ func TestAccUltradnsProbeHTTP(t *testing.T) {
 				),
 			},
 			resource.TestStep{
-				Config: fmt.Sprintf(testAccCheckUltradnsRecordAndProbeHTTPMaximal, domain, domain),
+				Config: fmt.Sprintf(testCfgProbeHTTPMaximal, domain, domain),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckUltraDNSRecordExists("ultradns_tcpool.test-probe-http-maximal", &record),
+					testAccCheckUltradnsRecordExists("ultradns_tcpool.test-probe-http-maximal", &record),
 					// Specified
 					resource.TestCheckResourceAttr("ultradns_probe_http.it", "zone", domain),
 					resource.TestCheckResourceAttr("ultradns_probe_http.it", "name", "test-probe-http-maximal"),
-					resource.TestCheckResourceAttr("ultradns_probe_http.it", "pool_record", "192.168.0.11"),
+					resource.TestCheckResourceAttr("ultradns_probe_http.it", "pool_record", "10.2.1.1"),
 					resource.TestCheckResourceAttr("ultradns_probe_http.it", "agents.0", "DALLAS"),
 					resource.TestCheckResourceAttr("ultradns_probe_http.it", "agents.1", "AMSTERDAM"),
 					resource.TestCheckResourceAttr("ultradns_probe_http.it", "interval", "ONE_MINUTE"),
@@ -91,30 +90,7 @@ func TestAccUltradnsProbeHTTP(t *testing.T) {
 	})
 }
 
-func testAccCheckUltradnsRecordAndHTTPProbeDestroy(s *terraform.State) error {
-	client := testAccProvider.Meta().(*udnssdk.Client)
-
-	for _, rs := range s.RootModule().Resources {
-		if rs.Type != "ultradns_record" {
-			continue
-		}
-
-		k := udnssdk.RRSetKey{
-			Zone: rs.Primary.Attributes["zone"],
-			Name: rs.Primary.Attributes["name"],
-			Type: rs.Primary.Attributes["type"],
-		}
-
-		_, err := client.RRSets.Select(k)
-		if err == nil {
-			return fmt.Errorf("Record still exists")
-		}
-	}
-
-	return nil
-}
-
-const testAccCheckUltradnsRecordAndHTTPProbeBasic = `
+const testCfgProbeHTTPMinimal = `
 resource "ultradns_tcpool" "test-probe-http-minimal" {
   zone = "%s"
   name = "test-probe-http-minimal"
@@ -127,7 +103,7 @@ resource "ultradns_tcpool" "test-probe-http-minimal" {
   max_to_lb     = 2
 
   rdata {
-    host = "192.168.0.11"
+    host = "10.2.0.1"
 
     state          = "NORMAL"
     run_probes     = true
@@ -138,7 +114,7 @@ resource "ultradns_tcpool" "test-probe-http-minimal" {
   }
 
   rdata {
-    host = "192.168.0.12"
+    host = "10.2.0.2"
 
     state          = "NORMAL"
     run_probes     = true
@@ -148,14 +124,14 @@ resource "ultradns_tcpool" "test-probe-http-minimal" {
     weight         = 2
   }
 
-  backup_record_rdata = "192.168.0.1"
+  backup_record_rdata = "10.2.0.3"
 }
 
 resource "ultradns_probe_http" "it" {
   zone = "%s"
   name = "test-probe-http-minimal"
 
-  pool_record = "192.168.0.11"
+  pool_record = "10.2.0.1"
 
   agents = ["DALLAS", "AMSTERDAM"]
 
@@ -187,7 +163,7 @@ resource "ultradns_probe_http" "it" {
 }
 `
 
-const testAccCheckUltradnsRecordAndProbeHTTPMaximal = `
+const testCfgProbeHTTPMaximal = `
 resource "ultradns_tcpool" "test-probe-http-maximal" {
   zone  = "%s"
   name  = "test-probe-http-maximal"
@@ -200,7 +176,7 @@ resource "ultradns_tcpool" "test-probe-http-maximal" {
   max_to_lb     = 2
 
   rdata {
-    host           = "192.168.0.11"
+    host = "10.2.1.1"
 
     state          = "NORMAL"
     run_probes     = true
@@ -211,7 +187,7 @@ resource "ultradns_tcpool" "test-probe-http-maximal" {
   }
 
   rdata {
-    host           = "192.168.0.12"
+    host = "10.2.1.2"
 
     state          = "NORMAL"
     run_probes     = true
@@ -221,14 +197,14 @@ resource "ultradns_tcpool" "test-probe-http-maximal" {
     weight         = 2
   }
 
-  backup_record_rdata = "192.168.0.1"
+  backup_record_rdata = "10.2.1.3"
 }
 
 resource "ultradns_probe_http" "it" {
   zone = "%s"
   name = "test-probe-http-maximal"
 
-  pool_record = "192.168.0.11"
+  pool_record = "10.2.1.1"
 
   agents = ["DALLAS", "AMSTERDAM"]
 

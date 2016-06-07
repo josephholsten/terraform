@@ -142,7 +142,6 @@ func resourceUltradnsProbeRead(d *schema.ResourceData, meta interface{}) error {
 
 	log.Printf("[DEBUG] ultradns_probe read: %+v", r)
 	probe, _, err := client.Probes.Find(r.Key())
-	panic(fmt.Sprintf("Probe: %#v ProbeInfo: %#v", r, probe))
 
 	if err != nil {
 		uderr, ok := err.(*udnssdk.ErrorResponseList)
@@ -206,25 +205,33 @@ func newProbeResource(d *schema.ResourceData) (probeResource, error) {
 	p.Interval = d.Get("interval").(string)
 	p.PoolRecord = d.Get("pool_record").(string)
 	p.Threshold = d.Get("threshold").(int)
-	p.Type = udnssdk.ProbeType(d.Get("type").(string))
 	for _, a := range d.Get("agents").([]interface{}) {
 		p.Agents = append(p.Agents, a.(string))
 	}
 
+	p.Type = udnssdk.ProbeType(d.Get("type").(string))
+	if !isValidType(p.Type) {
+		return p, fmt.Errorf("type invalid: %v", p.Type)
+	}
+
 	// details
 	// TODO: validate p.Type is in typeToAttrKeyMap.Keys
-	// TODO: case(p.Type) -> makeFooDetail
-	probedetails := d.Get(p.detailsAttribute()).(*schema.Set).List()[0].(map[string]interface{})
-	ls := map[string]interface{}{}
-	for _, limit := range probedetails["limit"].(*schema.Set).List() {
-		l := limit.(map[string]interface{})
-		name := l["name"].(string)
-		ls[name] = makeProbeDetailsLimit(l)
-	}
-	p.Details = &udnssdk.ProbeDetailsDTO{
-		Detail: map[string]interface{}{
-			"limits": ls,
-		},
+	detailsAttr := d.Get(p.detailsAttribute()).([]interface{})
+	if len(detailsAttr) >= 1 {
+		// TODO: validate 1 >= len >= 0
+		// TODO: case(p.Type) -> makeFooDetail
+		probedetails := detailsAttr[0].(map[string]interface{})
+		ls := map[string]interface{}{}
+		for _, limit := range probedetails["limit"].(*schema.Set).List() {
+			l := limit.(map[string]interface{})
+			name := l["name"].(string)
+			ls[name] = makeProbeDetailsLimit(l)
+		}
+		p.Details = &udnssdk.ProbeDetailsDTO{
+			Detail: map[string]interface{}{
+				"limits": ls,
+			},
+		}
 	}
 
 	return p, nil
@@ -243,6 +250,15 @@ var typeToAttrKeyMap = map[udnssdk.ProbeType]string{
 	udnssdk.SMTPSENDProbeType: "smtpsend_probe",
 }
 
+func isValidType(t udnssdk.ProbeType) bool {
+	return t == udnssdk.DNSProbeType ||
+		t == udnssdk.FTPProbeType ||
+		t == udnssdk.HTTPProbeType ||
+		t == udnssdk.PingProbeType ||
+		t == udnssdk.SMTPProbeType ||
+		t == udnssdk.SMTPSENDProbeType
+}
+
 func populateResourceDataFromProbe(p udnssdk.ProbeInfoDTO, d *schema.ResourceData) error {
 	d.SetId(p.ID)
 	d.Set("pool_record", p.PoolRecord)
@@ -251,13 +267,14 @@ func populateResourceDataFromProbe(p udnssdk.ProbeInfoDTO, d *schema.ResourceDat
 	d.Set("threshold", p.Threshold)
 
 	d.Set("type", p.ProbeType)
-	err := p.Details.Populate(p.ProbeType)
-	if err != nil {
-		return fmt.Errorf("Could not populate probe details: %v, ProbeInfo: %#v", err, p)
-	}
+
+	// err := p.Details.Populate(p.ProbeType)
+	// if err != nil {
+	// 	return fmt.Errorf("Could not populate probe details: %v, ProbeInfo: %#v", err, p)
+	// }
 	if p.Details != nil {
 		var dp map[string]interface{}
-		err = json.Unmarshal(p.Details.GetData(), &dp)
+		err := json.Unmarshal(p.Details.GetData(), &dp)
 		if err != nil {
 			return err
 		}
